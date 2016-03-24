@@ -1,0 +1,8 @@
+#!/bin/sh
+#perl -ne '
+#perl -ne "if \(\$3 && /BuildDirectory/\) { my \$a = `git rev-parse --abbrev-ref HEAD`; print \"\$a \$_"}" $GIT_WORK_TREE/*.pro.user
+#perl -e "print(\"$1 $2 $3 `git rev-parse --abbrev-ref HEAD`\")"
+export IS_BRANCH=$3;
+export BRANCH_NAME=`git rev-parse --abbrev-ref HEAD | tr / _`
+perl -e 'print "ERIC: $ENV{IS_BRANCH} $ENV{BRANCH_NAME}"'
+perl -i.bak -pe 'if ($ENV{IS_BRANCH} && /BuildDirectory/) { s/(.*-[A-Za-z0-9]+)(\w*)/${1}_$ENV{BRANCH_NAME}/}' $GIT_WORK_TREE/*.pro.user

@@ -26,3 +26,6 @@
 *.exe
 *.out
 *.app
+
+qt-test.pro.user
+
