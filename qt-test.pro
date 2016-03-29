@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui xml
+QT       += core gui xml sql
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -19,3 +19,4 @@ HEADERS  += src/mainwindow.h
 
 FORMS    += src/mainwindow.ui
 
+CONFIG += c++11
