@@ -13,12 +13,23 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     db.setDatabaseName("test.db");
     ui->setupUi(this);
-   // connect(_model, QSqlDatabase::)
+
+    // Show/Hide columns based on listwidget selection
     connect(ui->listWidget, &QListWidget::itemChanged, [&](QListWidgetItem *item) {
         if (item->checkState() == Qt::Checked) {
             ui->tableView->showColumn(item->listWidget()->row(item));
         } else {
             ui->tableView->hideColumn(item->listWidget()->row(item));
+        }
+    });
+
+    // If a row is resized apply to all rows
+    connect(ui->tableView->verticalHeader(), &QHeaderView::sectionResized, [&](int lindex, int oldsize, int newsize) {
+        QTableView &view = *ui->tableView;
+        int count = view.verticalHeader()->count();
+
+        for (int index = 0; index < count; ++index) {
+            view.setRowHeight(index, newsize);
         }
     });
 }
@@ -36,7 +47,7 @@ void MainWindow::InitListWidgetWithColumnNames(QListWidget *widget)
         QListWidgetItem *item = new QListWidgetItem;
         item->setData(Qt::DisplayRole, record.fieldName(index));
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable); // set checkable flag
-        item->setCheckState(Qt::Checked); // AND initialize check state
+        item->setCheckState(Qt::Checked); // Start 'checked'
         widget->addItem(item);
     }
 }
@@ -91,6 +102,13 @@ void MainWindow::on_actionLoad_triggered()
     query.addBindValue("Bart");
     query.addBindValue("Simpson");
     query.addBindValue("9");
+    query.exec();
+    query.prepare("INSERT INTO person (id, firstname, lastname, age) "
+                  "VALUES (?, ?, ?, ?)");
+    query.addBindValue(1002);
+    query.addBindValue("Maggie");
+    query.addBindValue("Simpson");
+    query.addBindValue("6");
     query.exec();
     }
 }
