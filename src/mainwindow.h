@@ -5,6 +5,9 @@
 
 #include <QtSql/QSqlDatabase>
 #include <QSqlTableModel>
+
+class QListWidget;
+
 namespace Ui {
 class MainWindow;
 }
@@ -16,6 +19,10 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
+
+private:
+   void InitListWidgetWithColumnNames(QListWidget *widget);
+   void SelectTable(QString table);
 
 private slots:
     void on_actionLoad_triggered();
