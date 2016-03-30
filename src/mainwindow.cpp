@@ -32,6 +32,43 @@ MainWindow::MainWindow(QWidget *parent) :
             view.setRowHeight(index, newsize);
         }
     });
+
+    // Provide user validation feedback for 'Filter' text
+    connect(ui->textEdit, &QTextEdit::textChanged, [&]() {
+        bool valid{false};
+        bool empty{false};
+
+        QString filter{ui->textEdit->document()->toPlainText()};
+
+        if (filter.size() == 0) {
+            valid = true;
+            empty = false;
+        } else {
+            QSqlQuery query;
+
+            // Basically we want to verify the 'where' clause is valid.
+            if (query.exec(QString("SELECT * FROM ") + active_table_ + " WHERE " + filter + " LIMIT 1")) {
+                query.next();
+                valid = true;
+                empty = !query.isValid();
+            }
+        }
+
+        if (valid && !empty) {
+            model_->setFilter(filter);
+            model_->select();
+            emit filterStatusChanged("Valid");
+        } else if (empty) {
+            emit filterStatusChanged("Invalid (empty result)");
+        } else {
+            emit filterStatusChanged("Invalid");
+        }
+    });
+
+    // Update groupbox title with filter status information
+    connect(this, &MainWindow::filterStatusChanged, [&](QString status) {
+        ui->groupBox_2->setTitle(QString("Filter: ") + status);
+    });
 }
 
 MainWindow::~MainWindow()
@@ -54,7 +91,12 @@ void MainWindow::InitListWidgetWithColumnNames(QListWidget *widget)
 
 void MainWindow::SelectTable(QString table)
 {
-    model_->setTable(table);
+    if (active_table_ == table) return;
+
+    active_table_ = table;
+
+    model_->setTable(active_table_);
+    ui->textEdit->clear();
 
     QSqlRecord record = model_->record();
     for (int index = 0; index < record.count(); ++index) {

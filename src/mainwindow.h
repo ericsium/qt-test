@@ -27,11 +27,14 @@ private:
 private slots:
     void on_actionLoad_triggered();
 
+signals:
+    void filterStatusChanged(QString status);
+
 private:
     Ui::MainWindow *ui;
     QSqlDatabase db;
     QSqlTableModel *model_;
-
+    QString active_table_;
 };
 
 #endif // MAINWINDOW_H
