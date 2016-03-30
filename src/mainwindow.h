@@ -4,7 +4,8 @@
 #include <QMainWindow>
 
 #include <QtSql/QSqlDatabase>
-#include <QSqlTableModel>
+#include <QSqlQueryModel>
+#include <map>
 
 class QListWidget;
 
@@ -21,11 +22,12 @@ public:
     ~MainWindow();
 
 private:
-   void InitListWidgetWithColumnNames(QListWidget *widget);
-   void SelectTable(QString table);
+   void UpdateListWidgetColumnNames(QListWidget *widget);
 
 private slots:
     void on_actionLoad_triggered();
+
+    void on_actionCreate_triggered();
 
 signals:
     void filterStatusChanged(QString status);
@@ -33,8 +35,9 @@ signals:
 private:
     Ui::MainWindow *ui;
     QSqlDatabase db;
-    QSqlTableModel *model_;
+    QSqlQueryModel *model_;
     QString active_table_;
+    std::map<QString, bool> column_hidden_;
 };
 
 #endif // MAINWINDOW_H

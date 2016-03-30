@@ -4,41 +4,48 @@
 
 #include <QSqlQuery>
 #include <QSqlRecord>
+#include <QFileDialog>
+#include <QInputDialog>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     db(QSqlDatabase::addDatabase("QSQLITE")),
-    model_(new QSqlTableModel(this, db))
+    model_(new QSqlQueryModel(this))
 {
-    db.setDatabaseName("test.db");
     ui->setupUi(this);
+
+    ui->tableView->setModel(model_);
+    ui->tableView->horizontalHeader()->setSectionsMovable(true);
+    ui->tableView->show();
 
     // Show/Hide columns based on listwidget selection
     connect(ui->listWidget, &QListWidget::itemChanged, [&](QListWidgetItem *item) {
-        if (item->checkState() == Qt::Checked) {
-            ui->tableView->showColumn(item->listWidget()->row(item));
-        } else {
+        if (item->checkState() == Qt::Unchecked) {
             ui->tableView->hideColumn(item->listWidget()->row(item));
+        } else {
+            ui->tableView->showColumn(item->listWidget()->row(item));
         }
     });
 
     // If a row is resized apply to all rows
-    connect(ui->tableView->verticalHeader(), &QHeaderView::sectionResized, [&](int lindex, int oldsize, int newsize) {
+    connect(ui->tableView->verticalHeader(), &QHeaderView::sectionResized, [&](int, int, int newsize) {
         QTableView &view = *ui->tableView;
         int count = view.verticalHeader()->count();
 
         for (int index = 0; index < count; ++index) {
             view.setRowHeight(index, newsize);
         }
+        // Update row height default with new value
+        ui->tableView->verticalHeader()->setProperty("defaultSectionSize", newsize);
     });
 
-    // Provide user validation feedback for 'Filter' text
-    connect(ui->textEdit, &QTextEdit::textChanged, [&]() {
+    // Provide user validation feedback for SQL field and handle queries
+    connect(ui->plainTextEdit, &QPlainTextEdit::textChanged, [&]() {
         bool valid{false};
         bool empty{false};
 
-        QString filter{ui->textEdit->document()->toPlainText()};
+        QString filter{ui->plainTextEdit->document()->toPlainText()};
 
         if (filter.size() == 0) {
             valid = true;
@@ -47,7 +54,7 @@ MainWindow::MainWindow(QWidget *parent) :
             QSqlQuery query;
 
             // Basically we want to verify the 'where' clause is valid.
-            if (query.exec(QString("SELECT * FROM ") + active_table_ + " WHERE " + filter + " LIMIT 1")) {
+            if (query.exec(filter + " LIMIT 1")) {
                 query.next();
                 valid = true;
                 empty = !query.isValid();
@@ -55,8 +62,9 @@ MainWindow::MainWindow(QWidget *parent) :
         }
 
         if (valid && !empty) {
-            model_->setFilter(filter);
-            model_->select();
+            model_->setQuery(filter);
+            UpdateListWidgetColumnNames(ui->listWidget);
+            ui->tableView->resizeColumnsToContents();
             emit filterStatusChanged("Valid");
         } else if (empty) {
             emit filterStatusChanged("Invalid (empty result)");
@@ -67,7 +75,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // Update groupbox title with filter status information
     connect(this, &MainWindow::filterStatusChanged, [&](QString status) {
-        ui->groupBox_2->setTitle(QString("Filter: ") + status);
+        ui->groupBox_2->setTitle(QString("SQL: ") + status);
     });
 }
 
@@ -76,47 +84,58 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::InitListWidgetWithColumnNames(QListWidget *widget)
+void MainWindow::UpdateListWidgetColumnNames(QListWidget *widget)
 {
     QSqlRecord record = model_->record();
+
+    // First save column_hidden attribute
+    for (int index = 0; index < widget->count(); ++index) {
+        QListWidgetItem &item = *(widget->item(index));
+        column_hidden_[item.text()] = (item.checkState() == Qt::Unchecked);
+    }
     widget->clear();
     for (int index = 0; index < record.count(); ++index) {
         QListWidgetItem *item = new QListWidgetItem;
-        item->setData(Qt::DisplayRole, record.fieldName(index));
-        item->setFlags(item->flags() | Qt::ItemIsUserCheckable); // set checkable flag
-        item->setCheckState(Qt::Checked); // Start 'checked'
+        QString name = record.fieldName(index);
+        item->setData(Qt::DisplayRole, name);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         widget->addItem(item);
+        // Default starting state is 'checked', but honor previous state
+        // we explicity add after addItem so listWidget sends out itemChanged notification
+        item->setCheckState(column_hidden_[name] ? Qt::Unchecked : Qt::Checked);
     }
-}
-
-void MainWindow::SelectTable(QString table)
-{
-    if (active_table_ == table) return;
-
-    active_table_ = table;
-
-    model_->setTable(active_table_);
-    ui->textEdit->clear();
-
-    QSqlRecord record = model_->record();
-    for (int index = 0; index < record.count(); ++index) {
-        model_->setHeaderData(index, Qt::Horizontal, record.fieldName(index));
-    }
-
-    model_->select();
 }
 
 void MainWindow::on_actionLoad_triggered()
 {
+    QString fileName = QFileDialog::getOpenFileName(this,
+        tr("Open Database"), QString(), tr("Database Files (*.db)"));
+
+    db.setDatabaseName(fileName);
+
     if (db.open()) {
         qDebug() << "db open for business";
     } else {
         qDebug() << "can't open db";
+        return;
     }
 
-    for (auto table: db.tables()) {
-        //QSqlQuery query;
-        //query.exec(QString("drop table) " + table));
+    bool ok;
+    QString table = QInputDialog::getItem(this, "Choose initial table", "Tables:", db.tables(),0,false, &ok);
+
+    ui->plainTextEdit->setPlainText(QString("SELECT * FROM ") + table);
+}
+
+void MainWindow::on_actionCreate_triggered()
+{
+
+    db.setDatabaseName("test.db");
+
+    if (db.open()) {
+        qDebug() << "db open for business";
+    } else {
+        qDebug() << "can't open db";
+        return;
     }
 
     // Populate with test data
@@ -127,17 +146,6 @@ void MainWindow::on_actionLoad_triggered()
               "lastname varchar(30), "
               "age integer)");
 
-    SelectTable("person");
-
-    ui->tableView->setModel(model_);
-    ui->tableView->horizontalHeader()->setSectionsMovable(true);
-    ui->tableView->resizeColumnsToContents();
-    InitListWidgetWithColumnNames(ui->listWidget);
-
-    ui->tableView->show();
-
-    {
-    QSqlQuery query;
     query.prepare("INSERT INTO person (id, firstname, lastname, age) "
                   "VALUES (?, ?, ?, ?)");
     query.addBindValue(1001);
@@ -152,5 +160,4 @@ void MainWindow::on_actionLoad_triggered()
     query.addBindValue("Simpson");
     query.addBindValue("6");
     query.exec();
-    }
 }
