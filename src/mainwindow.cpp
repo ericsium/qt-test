@@ -6,6 +6,7 @@
 #include <QSqlRecord>
 #include <QFileDialog>
 #include <QInputDialog>
+#include <QComboBox>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -37,7 +38,7 @@ MainWindow::MainWindow(QWidget *parent) :
             view.setRowHeight(index, newsize);
         }
         // Update row height default with new value
-        ui->tableView->verticalHeader()->setProperty("defaultSectionSize", newsize);
+        ui->tableView->setProperty("verticalHeaderDefaultSectionSize", newsize);
     });
 
     // Provide user validation feedback for SQL field and handle queries
@@ -52,7 +53,6 @@ MainWindow::MainWindow(QWidget *parent) :
             empty = false;
         } else {
             QSqlQuery query;
-
             // Basically we want to verify the 'where' clause is valid.
             if (query.exec(filter + " LIMIT 1")) {
                 query.next();
@@ -76,6 +76,11 @@ MainWindow::MainWindow(QWidget *parent) :
     // Update groupbox title with filter status information
     connect(this, &MainWindow::filterStatusChanged, [&](QString status) {
         ui->groupBox_2->setTitle(QString("SQL: ") + status);
+    });
+
+    // When user selects new combobox entry, update the SQL query.
+    connect(ui->comboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), [=](int index){
+        ui->plainTextEdit->setPlainText(ui->comboBox->itemData(index).toString());
     });
 }
 
@@ -108,8 +113,8 @@ void MainWindow::UpdateListWidgetColumnNames(QListWidget *widget)
 
 void MainWindow::on_actionLoad_triggered()
 {
-    QString fileName = QFileDialog::getOpenFileName(this,
-        tr("Open Database"), QString(), tr("Database Files (*.db)"));
+    QString fileName = QFileDialog::getOpenFileName(this,tr("Open Database"),
+                                                    QString(), tr("Database Files (*.db)"));
 
     db.setDatabaseName(fileName);
 
@@ -120,10 +125,19 @@ void MainWindow::on_actionLoad_triggered()
         return;
     }
 
-    bool ok;
-    QString table = QInputDialog::getItem(this, "Choose initial table", "Tables:", db.tables(),0,false, &ok);
+    ui->comboBox->clear();
 
-    ui->plainTextEdit->setPlainText(QString("SELECT * FROM ") + table);
+    // Look for table that provides user selectable queries
+    if (db.tables().contains("gdv_queries")) {
+        QSqlQuery query("SELECT name,query FROM gdv_queries");
+        while (query.next()) {
+            ui->comboBox->addItem(query.value(0).toString(), query.value(1).toString());
+        }
+    } else {
+        QString table = QInputDialog::getItem(this, "Choose initial table", "Tables:", db.tables(),0,false);
+        if (table.isEmpty()) table = db.tables().first();
+        ui->comboBox->addItem("Default", QString("SELECT * FROM ") + table);
+    }
 }
 
 void MainWindow::on_actionCreate_triggered()
@@ -141,10 +155,10 @@ void MainWindow::on_actionCreate_triggered()
     // Populate with test data
     QSqlQuery query;
     query.exec("create table person "
-              "(id integer primary key, "
-              "firstname varchar(20), "
-              "lastname varchar(30), "
-              "age integer)");
+               "(id integer primary key, "
+               "firstname varchar(20), "
+               "lastname varchar(30), "
+               "age integer)");
 
     query.prepare("INSERT INTO person (id, firstname, lastname, age) "
                   "VALUES (?, ?, ?, ?)");
@@ -159,5 +173,23 @@ void MainWindow::on_actionCreate_triggered()
     query.addBindValue("Maggie");
     query.addBindValue("Simpson");
     query.addBindValue("6");
+    query.exec();
+
+    query.exec("create table gdv_queries "
+               "(id integer primary key, "
+               "name varchar(20), "
+               "query varchar(40)) ");
+    query.prepare("INSERT INTO gdv_queries (id, name, query) "
+                  "VALUES (?, ?, ?)");
+    query.addBindValue(1);
+    query.addBindValue("Default");
+    query.addBindValue("SELECT * FROM person ORDER BY id");
+    query.exec();
+
+    query.prepare("INSERT INTO gdv_queries (id, name, query) "
+                  "VALUES (?, ?, ?)");
+    query.addBindValue(2);
+    query.addBindValue("Alternate");
+    query.addBindValue("SELECT * FROM person ORDER BY age");
     query.exec();
 }
