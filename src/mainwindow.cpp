@@ -41,20 +41,20 @@ MainWindow::MainWindow(QWidget *parent) :
         ui->tableView->setProperty("verticalHeaderDefaultSectionSize", newsize);
     });
 
-    // Provide user validation feedback for SQL field and handle queries
+    // Provide user validation feedback for SQL field and initiate queries
     connect(ui->plainTextEdit, &QPlainTextEdit::textChanged, [&]() {
         bool valid{false};
         bool empty{false};
 
-        QString filter{ui->plainTextEdit->document()->toPlainText()};
+        QString query_text{ui->plainTextEdit->document()->toPlainText()};
 
-        if (filter.size() == 0) {
+        if (query_text.size() == 0) {
             valid = true;
             empty = false;
         } else {
             QSqlQuery query;
             // Basically we want to verify the 'where' clause is valid.
-            if (query.exec(filter + " LIMIT 1")) {
+            if (query.exec(query_text + " LIMIT 1")) {
                 query.next();
                 valid = true;
                 empty = !query.isValid();
@@ -62,19 +62,19 @@ MainWindow::MainWindow(QWidget *parent) :
         }
 
         if (valid && !empty) {
-            model_->setQuery(filter);
+            model_->setQuery(query_text);
             UpdateListWidgetColumnNames(ui->listWidget);
             ui->tableView->resizeColumnsToContents();
-            emit filterStatusChanged("Valid");
+            emit queryStatusChanged("Valid");
         } else if (empty) {
-            emit filterStatusChanged("Invalid (empty result)");
+            emit queryStatusChanged("Invalid (empty result)");
         } else {
-            emit filterStatusChanged("Invalid");
+            emit queryStatusChanged("Invalid");
         }
     });
 
-    // Update groupbox title with filter status information
-    connect(this, &MainWindow::filterStatusChanged, [&](QString status) {
+    // Update groupbox title with query status information
+    connect(this, &MainWindow::queryStatusChanged, [&](QString status) {
         ui->groupBox_2->setTitle(QString("SQL: ") + status);
     });
 

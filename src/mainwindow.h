@@ -26,11 +26,10 @@ private:
 
 private slots:
     void on_actionLoad_triggered();
-
     void on_actionCreate_triggered();
 
 signals:
-    void filterStatusChanged(QString status);
+    void queryStatusChanged(QString status);
 
 private:
     Ui::MainWindow *ui;
