@@ -29,12 +29,15 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->treeWidget->setColumnCount(g_column_properties.count());
     ui->treeWidget->setHeaderLabels(g_column_properties);
 
-    // Show/Hide columns based on listwidget selection
-    connect(ui->listWidget, &QListWidget::itemChanged, [&](QListWidgetItem *item) {
-        if (item->checkState() == Qt::Unchecked) {
-            ui->tableView->hideColumn(item->listWidget()->row(item));
+    ui->treeWidget_2->header()->hide();
+    ui->treeWidget_2->setRootIsDecorated(false);
+
+    // Show/Hide columns based on TreeWidget selection
+    connect(ui->treeWidget_2, &QTreeWidget::itemChanged, [&](QTreeWidgetItem *item, int col) {
+        if (item->checkState(col) == Qt::Unchecked) {
+            ui->tableView->hideColumn(ui->treeWidget_2->indexOfTopLevelItem(item));
         } else {
-            ui->tableView->showColumn(item->listWidget()->row(item));
+            ui->tableView->showColumn(ui->treeWidget_2->indexOfTopLevelItem(item));
         }
     });
 
@@ -111,24 +114,25 @@ MainWindow::~MainWindow()
 
 void MainWindow::UpdateColumnInfo()
 {
-    QListWidget *widget = ui->listWidget;
+    QTreeWidget &widget = *ui->treeWidget_2;
     QSqlRecord record = model_->record();
 
     // First save column_hidden attribute
-    for (int index = 0; index < widget->count(); ++index) {
-        QListWidgetItem &item = *(widget->item(index));
-        column_hidden_[item.text()] = (item.checkState() == Qt::Unchecked);
+    for (int index = 0; index < widget.topLevelItemCount(); ++index) {
+        QTreeWidgetItem *item = widget.topLevelItem(index);
+        column_hidden_[item->text(0)] = (item->checkState(0) == Qt::Unchecked);
     }
-    widget->clear();
+    widget.clear();
+
     for (int index = 0; index < record.count(); ++index) {
-        QListWidgetItem *item = new QListWidgetItem;
+        QTreeWidgetItem *item = new QTreeWidgetItem;
         QString name = record.fieldName(index);
-        item->setData(Qt::DisplayRole, name);
+        item->setData(0, Qt::DisplayRole, name);
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-        widget->addItem(item);
+        widget.addTopLevelItem(item);
         // Default starting state is 'checked', but honor previous state
         // we explicity add after addItem so listWidget sends out itemChanged notification
-        item->setCheckState(column_hidden_[name] ? Qt::Unchecked : Qt::Checked);
+        item->setCheckState(0, column_hidden_[name] ? Qt::Unchecked : Qt::Checked);
     }
     // TODO: Remember user sized column changes
     ui->tableView->resizeColumnsToContents();
