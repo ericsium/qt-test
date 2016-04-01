@@ -20,23 +20,7 @@
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>
-      <widget class="QTableView" name="tableView">
-       <property name="selectionBehavior">
-        <enum>QAbstractItemView::SelectRows</enum>
-       </property>
-       <attribute name="horizontalHeaderHighlightSections">
-        <bool>false</bool>
-       </attribute>
-       <attribute name="verticalHeaderDefaultSectionSize">
-        <number>20</number>
-       </attribute>
-       <attribute name="verticalHeaderHighlightSections">
-        <bool>false</bool>
-       </attribute>
-       <attribute name="verticalHeaderMinimumSectionSize">
-        <number>10</number>
-       </attribute>
-      </widget>
+      <widget class="QTableView" name="tableView"/>
       <widget class="QSplitter" name="splitter">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
@@ -59,9 +43,6 @@
              <layout class="QVBoxLayout" name="verticalLayout">
               <item>
                <widget class="QTreeWidget" name="treeWidget_2">
-                <property name="itemsExpandable">
-                 <bool>false</bool>
-                </property>
                 <column>
                  <property name="text">
                   <string notr="true">1</string>
@@ -125,12 +106,6 @@
                 <widget class="QPushButton" name="pushButton">
                  <property name="text">
                   <string>Active Evaluation</string>
-                 </property>
-                 <property name="checkable">
-                  <bool>true</bool>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
                  </property>
                 </widget>
                </item>

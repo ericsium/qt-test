@@ -20,10 +20,16 @@ MainWindow::MainWindow(QWidget *parent) :
     db(QSqlDatabase::addDatabase("QSQLITE")),
     model_(new QSqlQueryModel(this))
 {
+
     ui->setupUi(this);
 
-    ui->tableView->setModel(model_);
+    ui->tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     ui->tableView->horizontalHeader()->setSectionsMovable(true);
+    ui->tableView->horizontalHeader()->setProperty("highlightSections", false);
+    ui->tableView->verticalHeader()->setProperty("defaultSectionSize", 20);
+    ui->tableView->verticalHeader()->setProperty("highlightSections", false);
+    ui->tableView->verticalHeader()->setProperty("minimumSectionSize", 10);
+    ui->tableView->setModel(model_);
     ui->tableView->show();
 
     ui->treeWidget->setColumnCount(g_column_properties.count());
@@ -31,6 +37,9 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->treeWidget_2->header()->hide();
     ui->treeWidget_2->setRootIsDecorated(false);
+
+    ui->pushButton->setCheckable(true);
+    ui->pushButton->setChecked(true);
 
     // Show/Hide columns based on TreeWidget selection
     connect(ui->treeWidget_2, &QTreeWidget::itemChanged, [&](QTreeWidgetItem *item, int col) {
@@ -49,8 +58,9 @@ MainWindow::MainWindow(QWidget *parent) :
         for (int index = 0; index < count; ++index) {
             view.setRowHeight(index, newsize);
         }
+        qDebug() << "Resized to: " << newsize;
         // Update row height default with new value
-        ui->tableView->setProperty("verticalHeaderDefaultSectionSize", newsize);
+        ui->tableView->verticalHeader()->setProperty("defaultSectionSize", newsize);
     });
 
     // Provide user validation feedback for SQL field and initiate queries
