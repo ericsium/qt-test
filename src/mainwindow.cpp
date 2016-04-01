@@ -58,7 +58,6 @@ MainWindow::MainWindow(QWidget *parent) :
         for (int index = 0; index < count; ++index) {
             view.setRowHeight(index, newsize);
         }
-        qDebug() << "Resized to: " << newsize;
         // Update row height default with new value
         ui->tableView->verticalHeader()->setProperty("defaultSectionSize", newsize);
     });
