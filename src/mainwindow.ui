@@ -75,7 +75,13 @@
              </property>
              <layout class="QVBoxLayout" name="verticalLayout_3">
               <item>
-               <widget class="QTableWidget" name="tableWidget"/>
+               <widget class="QTreeWidget" name="treeWidget">
+                <column>
+                 <property name="text">
+                  <string notr="true">1</string>
+                 </property>
+                </column>
+               </widget>
               </item>
              </layout>
             </widget>
@@ -93,7 +99,7 @@
                <item>
                 <widget class="QLabel" name="label">
                  <property name="text">
-                  <string>Predefined queries:</string>
+                  <string>Queries:</string>
                  </property>
                 </widget>
                </item>
@@ -112,6 +118,19 @@
                   </size>
                  </property>
                 </spacer>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pushButton">
+                 <property name="text">
+                  <string>Active Evaluation</string>
+                 </property>
+                 <property name="checkable">
+                  <bool>true</bool>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                </widget>
                </item>
               </layout>
              </item>

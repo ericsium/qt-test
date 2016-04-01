@@ -17,12 +17,14 @@ class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
+    typedef std::map<QString, bool> StringToBoolMap;
 public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
 
 private:
-   void UpdateListWidgetColumnNames(QListWidget *widget);
+   void UpdateColumnInfo();
+   QVariant GetPragmaTableInfo(QString table, QString field, QString col);
 
 private slots:
     void on_actionLoad_triggered();
@@ -36,7 +38,7 @@ private:
     QSqlDatabase db;
     QSqlQueryModel *model_;
     QString active_table_;
-    std::map<QString, bool> column_hidden_;
+    StringToBoolMap column_hidden_;
 };
 
 #endif // MAINWINDOW_H

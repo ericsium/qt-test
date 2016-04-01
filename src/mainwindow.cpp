@@ -7,6 +7,12 @@
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QComboBox>
+#include <QSqlDriver>
+#include <QSqlField>
+#include <QSqlIndex>
+#include <QVector>
+
+const QList<QString> g_column_properties{"name", "type", "pk"};
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -19,6 +25,9 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->tableView->setModel(model_);
     ui->tableView->horizontalHeader()->setSectionsMovable(true);
     ui->tableView->show();
+
+    ui->treeWidget->setColumnCount(g_column_properties.count());
+    ui->treeWidget->setHeaderLabels(g_column_properties);
 
     // Show/Hide columns based on listwidget selection
     connect(ui->listWidget, &QListWidget::itemChanged, [&](QListWidgetItem *item) {
@@ -46,6 +55,12 @@ MainWindow::MainWindow(QWidget *parent) :
         bool valid{false};
         bool empty{false};
 
+        // First check if SQL evaluation is enabled and return if it is not
+        if (!ui->pushButton->isChecked()) {
+            emit queryStatusChanged("(Active Evaluation disabled)");
+            return;
+        }
+
         QString query_text{ui->plainTextEdit->document()->toPlainText()};
 
         if (query_text.size() == 0) {
@@ -54,17 +69,17 @@ MainWindow::MainWindow(QWidget *parent) :
         } else {
             QSqlQuery query;
             // Basically we want to verify the 'where' clause is valid.
-            if (query.exec(query_text + " LIMIT 1")) {
+            if (query.exec(query_text)) {
                 query.next();
                 valid = true;
                 empty = !query.isValid();
             }
+            query.clear();
         }
 
         if (valid && !empty) {
             model_->setQuery(query_text);
-            UpdateListWidgetColumnNames(ui->listWidget);
-            ui->tableView->resizeColumnsToContents();
+            UpdateColumnInfo();
             emit queryStatusChanged("Valid");
         } else if (empty) {
             emit queryStatusChanged("Invalid (empty result)");
@@ -82,6 +97,11 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->comboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), [=](int index){
         ui->plainTextEdit->setPlainText(ui->comboBox->itemData(index).toString());
     });
+
+    // When 'active evaluation' button is checked make sure to trigger textChanged to process query
+    connect(ui->pushButton, &QPushButton::clicked, [&](bool checked) {
+        if (checked) emit ui->plainTextEdit->textChanged();
+    });
 }
 
 MainWindow::~MainWindow()
@@ -89,8 +109,9 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::UpdateListWidgetColumnNames(QListWidget *widget)
+void MainWindow::UpdateColumnInfo()
 {
+    QListWidget *widget = ui->listWidget;
     QSqlRecord record = model_->record();
 
     // First save column_hidden attribute
@@ -109,6 +130,33 @@ void MainWindow::UpdateListWidgetColumnNames(QListWidget *widget)
         // we explicity add after addItem so listWidget sends out itemChanged notification
         item->setCheckState(column_hidden_[name] ? Qt::Unchecked : Qt::Checked);
     }
+    // TODO: Remember user sized column changes
+    ui->tableView->resizeColumnsToContents();
+
+}
+
+QVariant MainWindow::GetPragmaTableInfo(QString table, QString field, QString col)
+{
+    static QVariantMap map;
+
+    if (map.empty()) {
+        for (const auto & table: db.tables(QSql::AllTables)) {
+            QSqlQuery query;
+            query.exec(QString("PRAGMA TABLE_INFO(%1);").arg(table));
+            QSqlRecord record = query.record();
+            while(query.next()) {
+                QString field = query.value(record.indexOf("name")).toString();
+                for (auto const &col: g_column_properties) {
+                    map[table + "." + field + "." + col] = query.value(col);
+                }
+            }
+        }
+    }
+
+    QVariantMap::const_iterator it = map.find(table + "." + field + "." + col);
+    if (it != map.constEnd()) return it.value();
+
+    return QVariant();
 }
 
 void MainWindow::on_actionLoad_triggered()
@@ -125,19 +173,60 @@ void MainWindow::on_actionLoad_triggered()
         return;
     }
 
-    ui->comboBox->clear();
-
-    // Look for table that provides user selectable queries
-    if (db.tables().contains("gdv_queries")) {
-        QSqlQuery query("SELECT name,query FROM gdv_queries");
-        while (query.next()) {
-            ui->comboBox->addItem(query.value(0).toString(), query.value(1).toString());
+    // Set 'hidden' attributes for all columns that are primary keys
+    // because by default people won't be interested in seeing them
+    [this](QSqlDatabase &db, StringToBoolMap &col) {
+        for (auto const &table: db.tables()) {
+            QSqlRecord record = db.record(table);
+            for (int index = 0; index < record.count(); ++index) {
+                QString field = record.fieldName(index);
+                if (GetPragmaTableInfo(table, field, "pk").toInt() > 0) {
+                    col[record.fieldName(index)] = true;
+                }
+            }
         }
-    } else {
-        QString table = QInputDialog::getItem(this, "Choose initial table", "Tables:", db.tables(),0,false);
-        if (table.isEmpty()) table = db.tables().first();
-        ui->comboBox->addItem("Default", QString("SELECT * FROM ") + table);
-    }
+    }(db, column_hidden_);
+
+    // Populate ComboBox with initial queries, either from special 'gdv_queries' table
+    // Or just set 'Default' query it gdv_queries is not available
+    [](QSqlDatabase &db, QComboBox &cb) {
+        cb.clear();
+
+        // Look for table that provides user selectable queries
+        if (db.tables().contains("gdv_queries")) {
+            QSqlQuery query("SELECT name,query FROM gdv_queries");
+            while (query.next()) {
+                cb.addItem(query.value(0).toString(), query.value(1).toString());
+            }
+        } else {
+            QString table = QInputDialog::getItem(cb.parentWidget(), "Choose initial table", "Tables:", db.tables(),0,false);
+            if (table.isEmpty()) table = db.tables().first();
+            cb.addItem("Default", QString("SELECT * FROM ") + table);
+        }
+    }(db, *ui->comboBox);
+
+    // Populate TreeView with data representing SQL tables and their fields.  Add in
+    // information from SQL PRAGMA table 'table_info' to show field types and primary
+    // key information.
+    [this](QSqlDatabase &db, QTreeWidget &tw) {
+        tw.clear();
+
+        for (const auto &table: db.tables(QSql::AllTables)) {
+            QTreeWidgetItem *parent = new QTreeWidgetItem;
+            parent->setText(0, table);
+
+            QSqlRecord record = db.record(table);
+            for (int index = 0; index < record.count();  ++index) {
+                QTreeWidgetItem *child = new QTreeWidgetItem;
+                QString fieldName = record.fieldName(index);
+                for (int col = 0; col < g_column_properties.size(); ++col) {
+                    child->setText(col, GetPragmaTableInfo(table, fieldName, g_column_properties[col]).toString());
+                }
+                parent->addChild(child);
+            }
+            tw.addTopLevelItem(parent);
+        }
+    }(db, *ui->treeWidget);
 }
 
 void MainWindow::on_actionCreate_triggered()
