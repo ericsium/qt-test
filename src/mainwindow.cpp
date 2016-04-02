@@ -41,6 +41,9 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->pushButton->setCheckable(true);
     ui->pushButton->setChecked(true);
 
+    ui->plainTextEdit_2->setReadOnly(true);
+    ui->plainTextEdit_2->setLineWrapMode(QPlainTextEdit::NoWrap);
+
     // Show/Hide columns based on TreeWidget selection
     connect(ui->treeWidget_2, &QTreeWidget::itemChanged, [&](QTreeWidgetItem *item, int col) {
         if (item->checkState(col) == Qt::Unchecked) {
@@ -113,6 +116,17 @@ MainWindow::MainWindow(QWidget *parent) :
     // When 'active evaluation' button is checked make sure to trigger textChanged to process query
     connect(ui->pushButton, &QPushButton::clicked, [&](bool checked) {
         if (checked) emit ui->plainTextEdit->textChanged();
+    });
+
+    // When new row is selection is made signal a map that contains column names as keys
+    // and row entries as values.
+    connect(ui->tableView->selectionModel(), &QItemSelectionModel::currentRowChanged, [&](const QModelIndex &current, const QModelIndex &) {
+        QVariantMap map;
+        for (int column = 0; column < model_->columnCount(); ++column) {
+            QString col_name = model_->headerData(column, Qt::Horizontal, Qt::DisplayRole).toString();
+            map[col_name] = model_->data(model_->index(current.row(), column));
+        }
+        emit rowSelectionChanged(map);
     });
 }
 

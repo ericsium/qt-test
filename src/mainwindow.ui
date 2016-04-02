@@ -117,7 +117,7 @@
          </item>
         </layout>
        </widget>
-       <widget class="QTextBrowser" name="textBrowser"/>
+       <widget class="QPlainTextEdit" name="plainTextEdit_2"/>
       </widget>
      </widget>
     </item>

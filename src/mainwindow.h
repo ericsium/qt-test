@@ -31,7 +31,8 @@ private slots:
     void on_actionCreate_triggered();
 
 signals:
-    void queryStatusChanged(QString status);
+    void queryStatusChanged(const QString &status);
+    void rowSelectionChanged(const QVariantMap &map);
 
 private:
     Ui::MainWindow *ui;
