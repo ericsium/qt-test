@@ -175,8 +175,10 @@ MainWindow::MainWindow(QWidget *parent) :
             it.value()->seek(0);
             ui->plainTextEdit_2->setPlainText(text);
             auto block = ui->plainTextEdit_2->document()->findBlockByLineNumber(line);
-            ui->plainTextEdit_2->setTextCursor(QTextCursor(block));
-
+            QTextCursor cursor(ui->plainTextEdit_2->document());
+            cursor.setPosition(block.position());
+            cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+            ui->plainTextEdit_2->setTextCursor(cursor);
         } else {
             statusBar()->showMessage("ERROR: Unexpected problem opening file: '" + file + "'", 5000);
         }
