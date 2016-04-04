@@ -11,6 +11,8 @@
 #include <QSqlField>
 #include <QSqlIndex>
 #include <QVector>
+#include <QTabWidget>
+#include <QTextBlock>
 
 const QList<QString> g_column_properties{"name", "type", "pk"};
 
@@ -43,6 +45,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->plainTextEdit_2->setReadOnly(true);
     ui->plainTextEdit_2->setLineWrapMode(QPlainTextEdit::NoWrap);
+
+    ui->comboBox->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 
     // Show/Hide columns based on TreeWidget selection
     connect(ui->treeWidget_2, &QTreeWidget::itemChanged, [&](QTreeWidgetItem *item, int col) {
@@ -127,6 +131,55 @@ MainWindow::MainWindow(QWidget *parent) :
             map[col_name] = model_->data(model_->index(current.row(), column));
         }
         emit rowSelectionChanged(map);
+    });
+
+    // Handle parsing of current row data and emit file/line info
+    connect(this, &MainWindow::rowSelectionChanged, [&](const QVariantMap &map) {
+        QString file;
+        int line{0};
+        QVariantMap::const_iterator it;
+        if ((it = map.constFind("file")) != map.cend()) file = it.value().toString();
+        if ((it = map.constFind("line")) != map.cend()) line = it.value().toInt();
+
+        if (!file.isEmpty()) {
+            emit fileLineChanged(file, line);
+        }
+    });
+
+    // Receive fileLineChanged info and handle opening and reading of files. Send notifications if
+    // there is any problems opening or caching the file.
+    // Cache file information for subsequent queries
+    connect(this, &MainWindow::fileLineChanged, [&](QString file, int line) {
+        auto it = file_map_.constFind(file);
+        if ( it == file_map_.cend()) {
+            // Try to open file and store QFile pointer
+            QSharedPointer<QFile> tmp = QSharedPointer<QFile>(new QFile(file));
+
+            if (!tmp->exists()) {
+                statusBar()->showMessage("ERROR: Cannot display file '" + file + "' as it does not exist.", 5000);
+                return;
+            }
+
+            if (!tmp->open(QIODevice::ReadOnly | QIODevice::Text)) {
+                statusBar()->showMessage("ERROR: Problems opening file '" + file + "' with error: " + tmp->errorString(), 5000);
+                return;
+            }
+            statusBar()->showMessage("Succesfully opened file: '" + file + "'", 5000);
+
+            file_map_.insert(file, tmp);
+        }
+
+        // Search again and set plaintext
+        if ((it = file_map_.constFind(file)) != file_map_.end()) {
+            QString text = it.value()->readAll();
+            it.value()->seek(0);
+            ui->plainTextEdit_2->setPlainText(text);
+            auto block = ui->plainTextEdit_2->document()->findBlockByLineNumber(line);
+            ui->plainTextEdit_2->setTextCursor(QTextCursor(block));
+
+        } else {
+            statusBar()->showMessage("ERROR: Unexpected problem opening file: '" + file + "'", 5000);
+        }
     });
 }
 

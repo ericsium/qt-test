@@ -5,9 +5,11 @@
 
 #include <QtSql/QSqlDatabase>
 #include <QSqlQueryModel>
+#include <QSharedPointer>
 #include <map>
 
 class QListWidget;
+class QFile;
 
 namespace Ui {
 class MainWindow;
@@ -33,6 +35,7 @@ private slots:
 signals:
     void queryStatusChanged(const QString &status);
     void rowSelectionChanged(const QVariantMap &map);
+    void fileLineChanged(QString file, int line);
 
 private:
     Ui::MainWindow *ui;
@@ -40,6 +43,7 @@ private:
     QSqlQueryModel *model_;
     QString active_table_;
     StringToBoolMap column_hidden_;
+    QMap<QString, QSharedPointer<QFile> > file_map_;
 };
 
 #endif // MAINWINDOW_H
