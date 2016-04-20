@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>assets/Actions-zoom-fit-width-icon.png</file>
+        <file>assets/Actions-document-open-icon.png</file>
+    </qresource>
+</RCC>

@@ -20,3 +20,6 @@ HEADERS  += src/mainwindow.h
 FORMS    += src/mainwindow.ui
 
 CONFIG += c++11
+
+RESOURCES += \
+    resources.qrc

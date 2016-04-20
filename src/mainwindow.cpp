@@ -13,6 +13,7 @@
 #include <QVector>
 #include <QTabWidget>
 #include <QTextBlock>
+#include <QDir>
 
 const QList<QString> g_column_properties{"name", "type", "pk"};
 
@@ -45,6 +46,16 @@ MainWindow::MainWindow(QWidget *parent) :
 
     ui->plainTextEdit_2->setReadOnly(true);
     ui->plainTextEdit_2->setLineWrapMode(QPlainTextEdit::NoWrap);
+
+    ui->fileLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    ui->fileLabel->setText("<filename>");
+    QFont font;
+    font.setFamily("Courier");
+    font.setStyleHint(QFont::Monospace);
+    font.setFixedPitch(true);
+    font.setPointSize(10);
+    font.setBold(true);
+    ui->plainTextEdit_2->setFont(font);
 
     ui->comboBox->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 
@@ -122,12 +133,17 @@ MainWindow::MainWindow(QWidget *parent) :
         if (checked) emit ui->plainTextEdit->textChanged();
     });
 
+    // When user clicks on column headers resize column to contents
+    connect(ui->tableView->horizontalHeader(), &QHeaderView::sectionClicked, [&](int idx) {
+        ui->tableView->resizeColumnToContents(idx);
+    });
+
     // When new row is selection is made signal a map that contains column names as keys
     // and row entries as values.
     connect(ui->tableView->selectionModel(), &QItemSelectionModel::currentRowChanged, [&](const QModelIndex &current, const QModelIndex &) {
         QVariantMap map;
         for (int column = 0; column < model_->columnCount(); ++column) {
-            QString col_name = model_->headerData(column, Qt::Horizontal, Qt::DisplayRole).toString();
+            QString col_name = model_->headerData(column, Qt::Horizontal, Qt::DisplayRole).toString().toLower();
             map[col_name] = model_->data(model_->index(current.row(), column));
         }
         emit rowSelectionChanged(map);
@@ -169,16 +185,31 @@ MainWindow::MainWindow(QWidget *parent) :
             file_map_.insert(file, tmp);
         }
 
+        ui->fileLabel->setText(file + ":" + QString::number(line));
+
         // Search again and set plaintext
         if ((it = file_map_.constFind(file)) != file_map_.end()) {
             QString text = it.value()->readAll();
             it.value()->seek(0);
             ui->plainTextEdit_2->setPlainText(text);
-            auto block = ui->plainTextEdit_2->document()->findBlockByLineNumber(line);
+            // findBlockByLine assumes first block at line 0.  All apps treate first line as line 1
+            // so subtract one.
+            auto block = ui->plainTextEdit_2->document()->findBlockByLineNumber(line - 1);
             QTextCursor cursor(ui->plainTextEdit_2->document());
+
+            // Set initial position and search backwards for start of selection
             cursor.setPosition(block.position());
-            cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+            QTextCursor start = ui->plainTextEdit_2->document()->find(QRegularExpression("^\\s+="), cursor.position(), QTextDocument::FindBackward) ;
+            // Search forward now from last '=' skipping over spaces and non-op lines
+            start = ui->plainTextEdit_2->document()->find(QRegularExpression("^\\s+\\w+"), start.position());
+            // This selects text from start to end
+            start.movePosition(QTextCursor::StartOfLine);
+            cursor.setPosition(start.position());
+            cursor.setPosition(block.position(), QTextCursor::KeepAnchor);
+
             ui->plainTextEdit_2->setTextCursor(cursor);
+            ui->plainTextEdit_2->ensureCursorVisible();
+
         } else {
             statusBar()->showMessage("ERROR: Unexpected problem opening file: '" + file + "'", 5000);
         }
@@ -244,7 +275,7 @@ QVariant MainWindow::GetPragmaTableInfo(QString table, QString field, QString co
 void MainWindow::on_actionLoad_triggered()
 {
     QString fileName = QFileDialog::getOpenFileName(this,tr("Open Database"),
-                                                    QString(), tr("Database Files (*.db)"));
+                                                    QDir::currentPath(), tr("Database Files (*.db)"));
 
     db.setDatabaseName(fileName);
 
@@ -363,4 +394,9 @@ void MainWindow::on_actionCreate_triggered()
     query.addBindValue("Alternate");
     query.addBindValue("SELECT * FROM person ORDER BY age");
     query.exec();
+}
+
+void MainWindow::on_actionResize_triggered()
+{
+    ui->tableView->resizeColumnsToContents();
 }
